@@ -99,7 +99,7 @@ blueprint! {
             (a_withdrawn, b_withdrawn)
         } 
     
-        pub fn swap(&mut self, input_tokens: Bucket) -> () {
+        pub fn swap(&mut self, input_tokens: Bucket) -> (Bucket) {
 
             assert!(
                 input_tokens.resource_address() == self.a_pool.resource_address() || 
@@ -107,10 +107,33 @@ blueprint! {
                 "Wrong token input"
             );
 
-            // let lp_resource_manager = borrow_resource_manager!(self.lp_resource_address);
+            let lp_resource_manager = borrow_resource_manager!(self.lp_resource_address);
 
-            // let fee_amount = input_tokens.amount() * self.fee;
+            let fee_amount = input_tokens.amount() * self.fee;
+
+            let output_tokens = if input_tokens.resource_address() == self.a_pool.resource_address() {
+                let b_amount = self.b_pool.amount() - self.a_pool.amount() * self.b_pool.amount() /
+                (input_tokens.amount() - fee_amount + self.a_pool.amount());
+
+                self.a_pool.put(input_tokens);
+
+                self.b_pool.take(b_amount)
+            } else {
+                let a_amount = self.a_pool.amount() - self.a_pool.amount() * self.b_pool.amount() /
+                (input_tokens.amount() - fee_amount + self.b_pool.amount());
+
+                self.a_pool.put(input_tokens);
+
+                self.b_pool.take(a_amount)
+            };
+
+            self.lp_per_asset_ratio = lp_resource_manager.total_supply() / (self.a_pool.amount() * self.b_pool.amount());
+
+            output_tokens
         }
     
+        pub fn get_pair(&self) -> (ResourceAddress, ResourceAddress) {
+            (self.a_pool.resource_address(), self.b_pool.resource_address())
+        }
     }
 }
